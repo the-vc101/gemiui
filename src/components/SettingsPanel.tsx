@@ -6,9 +6,31 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 
 export default function SettingsPanel() {
-  const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState('gemini-2.5-pro')
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini-api-key') || '')
+  const [model, setModel] = useState(() => localStorage.getItem('gemini-model') || 'gemini-2.5-pro')
   const [theme, setTheme] = useState('default')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true)
+    try {
+      // Save to localStorage
+      if (apiKey) {
+        localStorage.setItem('gemini-api-key', apiKey)
+      } else {
+        localStorage.removeItem('gemini-api-key')
+      }
+      
+      localStorage.setItem('gemini-model', model)
+      
+      // Reload the page to reinitialize Gemini service
+      window.location.reload()
+    } catch (error) {
+      console.error('Error saving settings:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -40,7 +62,7 @@ export default function SettingsPanel() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Get your API key from{' '}
-                  <a href="#" className="text-primary hover:underline">
+                  <a href="https://aistudio.google.com/apikey" className="text-primary hover:underline">
                     Google AI Studio
                   </a>
                 </p>
@@ -144,7 +166,9 @@ export default function SettingsPanel() {
 
           {/* Save Button */}
           <div className="flex justify-end pt-4">
-            <Button>Save Settings</Button>
+            <Button onClick={handleSaveSettings} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Settings'}
+            </Button>
           </div>
         </div>
       </ScrollArea>

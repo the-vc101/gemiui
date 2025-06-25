@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User } from 'lucide-react'
+import { Send, Bot, User, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { useGemini } from '@/hooks/useGemini'
 
 interface Message {
   id: string
@@ -13,17 +14,42 @@ interface Message {
 }
 
 export default function ChatPanel() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'system',
-      content: 'Welcome to GemiUI! I\'m your AI assistant powered by Gemini. How can I help you today?',
-      timestamp: new Date(),
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [currentStreamingMessage, setCurrentStreamingMessage] = useState('')
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  
+  const { 
+    isInitialized, 
+    isLoading, 
+    error: geminiError, 
+    model,
+    initialize,
+    sendMessage,
+    isReady 
+  } = useGemini()
+
+  // Initialize Gemini service when component mounts
+  useEffect(() => {
+    if (!isInitialized) {
+      // Try to get API key from localStorage or prompt user
+      const savedApiKey = localStorage.getItem('gemini-api-key')
+      if (savedApiKey) {
+        initialize({
+          apiKey: savedApiKey,
+          model: 'gemini-2.5-pro'
+        }).catch(console.error)
+      } else {
+        // Show welcome message asking for API key
+        setMessages([{
+          id: '1',
+          type: 'system',
+          content: 'Welcome to GemiUI! Please configure your Gemini API key in Settings to start chatting.',
+          timestamp: new Date(),
+        }])
+      }
+    }
+  }, [isInitialized, initialize])
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages are added
@@ -36,7 +62,7 @@ export default function ChatPanel() {
   }, [messages])
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return
+    if (!inputValue.trim() || isLoading || !isReady) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -46,20 +72,50 @@ export default function ChatPanel() {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const messageContent = inputValue.trim()
     setInputValue('')
-    setIsLoading(true)
+    setCurrentStreamingMessage('')
 
-    // Simulate AI response (we'll replace this with actual Gemini CLI integration)
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: `I received your message: "${userMessage.content}". This is a placeholder response. Soon, I'll be connected to the Gemini CLI core for real AI interactions!`,
-        timestamp: new Date(),
+    try {
+      const generator = sendMessage(messageContent)
+      let fullResponse = ''
+      
+      for await (const response of generator) {
+        if (response.type === 'content' && response.content) {
+          fullResponse += response.content
+          setCurrentStreamingMessage(fullResponse)
+        } else if (response.type === 'error') {
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            type: 'system',
+            content: `Error: ${response.error}`,
+            timestamp: new Date(),
+          }])
+          setCurrentStreamingMessage('')
+          return
+        } else if (response.type === 'done') {
+          // Add the complete assistant message
+          if (fullResponse) {
+            setMessages(prev => [...prev, {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: fullResponse,
+              timestamp: new Date(),
+            }])
+          }
+          setCurrentStreamingMessage('')
+          return
+        }
       }
-      setMessages(prev => [...prev, assistantMessage])
-      setIsLoading(false)
-    }, 1000)
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        type: 'system',
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to send message'}`,
+        timestamp: new Date(),
+      }])
+      setCurrentStreamingMessage('')
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -80,9 +136,18 @@ export default function ChatPanel() {
         <Bot className="h-5 w-5 mr-2" />
         <h2 className="font-semibold">Chat with Gemini</h2>
         <div className="ml-auto flex items-center space-x-2">
-          <div className={`h-2 w-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} />
+          {geminiError && (
+            <AlertCircle className="h-4 w-4 text-red-500" />
+          )}
+          <div className={`h-2 w-2 rounded-full ${
+            geminiError ? 'bg-red-500' : 
+            isLoading ? 'bg-yellow-500' : 
+            isReady ? 'bg-green-500' : 'bg-gray-400'
+          }`} />
           <span className="text-sm text-muted-foreground">
-            {isLoading ? 'Thinking...' : 'Ready'}
+            {geminiError ? 'Error' :
+             isLoading ? 'Thinking...' : 
+             isReady ? `Ready (${model})` : 'Not configured'}
           </span>
         </div>
       </div>
@@ -135,7 +200,7 @@ export default function ChatPanel() {
               </div>
             </div>
           ))}
-          {isLoading && (
+          {(isLoading || currentStreamingMessage) && (
             <div className="flex items-start space-x-3">
               <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md bg-muted">
                 <Bot className="h-4 w-4" />
@@ -143,14 +208,20 @@ export default function ChatPanel() {
               <div className="flex-1 space-y-1">
                 <div className="flex items-center space-x-2">
                   <span className="text-sm font-medium">Gemini</span>
-                  <span className="text-xs text-muted-foreground">typing...</span>
+                  <span className="text-xs text-muted-foreground">
+                    {currentStreamingMessage ? 'responding...' : 'typing...'}
+                  </span>
                 </div>
                 <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                  <div className="flex space-x-1">
-                    <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" />
-                    <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                    <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                  </div>
+                  {currentStreamingMessage ? (
+                    <div className="whitespace-pre-wrap">{currentStreamingMessage}</div>
+                  ) : (
+                    <div className="flex space-x-1">
+                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" />
+                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                      <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -173,7 +244,7 @@ export default function ChatPanel() {
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading}
+            disabled={!inputValue.trim() || isLoading || !isReady}
             size="icon"
           >
             <Send className="h-4 w-4" />
