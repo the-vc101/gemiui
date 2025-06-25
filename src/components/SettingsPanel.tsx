@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Settings, Key, Palette, Brain, Server } from 'lucide-react'
+import { Settings, Key, Palette, Brain, Server, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { useElectron } from '@/hooks/useElectron'
 
 export default function SettingsPanel() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini-api-key') || '')
   const [model, setModel] = useState(() => localStorage.getItem('gemini-model') || 'gemini-2.5-pro')
   const [theme, setTheme] = useState('default')
   const [isSaving, setIsSaving] = useState(false)
+  const { openExternalLink } = useElectron()
 
   const handleSaveSettings = async () => {
     setIsSaving(true)
@@ -60,12 +62,20 @@ export default function SettingsPanel() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Get your API key from{' '}
-                  <a href="https://aistudio.google.com/apikey" className="text-primary hover:underline">
-                    Google AI Studio
-                  </a>
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Get your API key from Google AI Studio
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openExternalLink('https://aistudio.google.com/apikey')}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open AI Studio
+                  </Button>
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block">Model</label>
