@@ -2,3 +2,4 @@ dist
 electron
 node_modules/
 .idea
+.env
