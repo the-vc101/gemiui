@@ -2,7 +2,7 @@
 
 A modern GUI application for Gemini CLI, built with Electron, React, and shadcn/ui.
 
-![GemiUI Screenshot](https://via.placeholder.com/800x600?text=GemiUI+Screenshot)
+![GemiUI Screenshot](./public/screenshot.png)
 
 ## ✨ Features
 
