@@ -22,5 +22,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@google/generative-ai']
-  }
+  },
+  envPrefix: 'VITE_'
 })

@@ -32,21 +32,44 @@ export default function ChatPanel() {
   // Initialize Gemini service when component mounts
   useEffect(() => {
     if (!isInitialized) {
-      // Try to get API key from localStorage or prompt user
-      const savedApiKey = localStorage.getItem('gemini-api-key')
-      if (savedApiKey) {
-        initialize({
-          apiKey: savedApiKey,
-          model: 'gemini-2.5-pro'
-        }).catch(console.error)
+      const authType = localStorage.getItem('auth-type') || 'apikey'
+      
+      if (authType === 'google-oauth') {
+        // Try Google OAuth
+        const accessToken = localStorage.getItem('google-access-token')
+        if (accessToken) {
+          initialize({
+            authType: 'google-oauth',
+            accessToken,
+            model: 'gemini-2.5-pro'
+          }).catch(console.error)
+        } else {
+          // Show welcome message
+          setMessages([{
+            id: '1',
+            type: 'system',
+            content: 'Welcome to GemiUI! Please sign in with Google in Settings to start chatting.',
+            timestamp: new Date(),
+          }])
+        }
       } else {
-        // Show welcome message asking for API key
-        setMessages([{
-          id: '1',
-          type: 'system',
-          content: 'Welcome to GemiUI! Please configure your Gemini API key in Settings to start chatting.',
-          timestamp: new Date(),
-        }])
+        // Try API key
+        const savedApiKey = localStorage.getItem('gemini-api-key')
+        if (savedApiKey) {
+          initialize({
+            authType: 'apikey',
+            apiKey: savedApiKey,
+            model: 'gemini-2.5-pro'
+          }).catch(console.error)
+        } else {
+          // Show welcome message asking for API key
+          setMessages([{
+            id: '1',
+            type: 'system',
+            content: 'Welcome to GemiUI! Please configure your authentication in Settings to start chatting.',
+            timestamp: new Date(),
+          }])
+        }
       }
     }
   }, [isInitialized, initialize])

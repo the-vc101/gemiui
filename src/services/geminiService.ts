@@ -10,6 +10,8 @@ export interface GeminiConfig {
   model?: string
   temperature?: number
   maxTokens?: number
+  authType?: 'apikey' | 'google-oauth'
+  accessToken?: string
 }
 
 export interface StreamingResponse {
@@ -26,13 +28,20 @@ export class GeminiService {
   private currentModel = 'gemini-2.5-pro'
 
   async initialize(geminiConfig: GeminiConfig): Promise<void> {
-    if (!geminiConfig.apiKey) {
-      throw new Error('API key is required')
+    const authType = geminiConfig.authType || 'apikey'
+    
+    if (authType === 'apikey' && !geminiConfig.apiKey) {
+      throw new Error('API key is required for API key authentication')
+    }
+    
+    if (authType === 'google-oauth' && !geminiConfig.accessToken) {
+      throw new Error('Access token is required for Google OAuth authentication')
     }
 
     try {
-      // Initialize Google GenAI
-      this.genAI = new GoogleGenerativeAI(geminiConfig.apiKey)
+      // Initialize Google GenAI with appropriate auth method
+      const authToken = authType === 'google-oauth' ? geminiConfig.accessToken : geminiConfig.apiKey
+      this.genAI = new GoogleGenerativeAI(authToken!)
       this.currentModel = geminiConfig.model || 'gemini-2.5-pro'
       
       // Get the generative model
